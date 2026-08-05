@@ -1,3 +1,5 @@
+import 'route_point.dart';
+
 /// Espelha `rides` (supabase/migrations/0001_init_core_schema.sql).
 enum RideSource { manual, scheduled, platformOcr }
 
@@ -36,6 +38,7 @@ class Ride {
     this.estimatedDurationMin,
     this.category,
     this.notes,
+    this.routePoints = const [],
   });
 
   final String id;
@@ -72,6 +75,10 @@ class Ride {
   final String? category;
 
   final String? notes;
+
+  /// Breadcrumb GPS capturado durante o rastreamento em primeiro plano
+  /// (Fase 4). Ver 0008_add_ride_route_points.sql.
+  final List<RoutePoint> routePoints;
 
   final DateTime createdAt;
   final DateTime updatedAt;

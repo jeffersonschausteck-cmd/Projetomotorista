@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/whatsapp_launcher.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../clients/domain/entities/client.dart';
+import '../../../clients/presentation/providers/clients_provider.dart';
 import '../../../ocr/presentation/screens/ride_import_screen.dart';
 import '../../domain/entities/ride.dart';
+import '../../domain/services/ride_receipt_message.dart';
 import '../providers/rides_provider.dart';
 import '../widgets/ride_card.dart';
 import 'ride_form_screen.dart';
+import 'ride_tracking_screen.dart';
 
 class AgendaScreen extends ConsumerStatefulWidget {
   const AgendaScreen({super.key});
@@ -28,6 +33,7 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen>
   @override
   Widget build(BuildContext context) {
     final ridesAsync = ref.watch(ridesListProvider);
+    final clientsAsync = ref.watch(clientsListProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -69,12 +75,23 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen>
                     r.status == RideStatus.declined,
               )
               .toList();
+          final clientsById = {
+            for (final c in clientsAsync.value ?? const <Client>[]) c.id: c,
+          };
 
           return TabBarView(
             controller: _tabController,
             children: [
-              _RidesTab(rides: agenda, emptyMessage: 'Nenhuma corrida agendada.'),
-              _RidesTab(rides: historico, emptyMessage: 'Nenhuma corrida no histórico ainda.'),
+              _RidesTab(
+                rides: agenda,
+                clientsById: clientsById,
+                emptyMessage: 'Nenhuma corrida agendada.',
+              ),
+              _RidesTab(
+                rides: historico,
+                clientsById: clientsById,
+                emptyMessage: 'Nenhuma corrida no histórico ainda.',
+              ),
             ],
           );
         },
@@ -84,9 +101,10 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen>
 }
 
 class _RidesTab extends ConsumerWidget {
-  const _RidesTab({required this.rides, required this.emptyMessage});
+  const _RidesTab({required this.rides, required this.clientsById, required this.emptyMessage});
 
   final List<Ride> rides;
+  final Map<String, Client> clientsById;
   final String emptyMessage;
 
   @override
@@ -105,10 +123,17 @@ class _RidesTab extends ConsumerWidget {
           final ride = rides[index];
           final actions = ref.read(rideActionsControllerProvider.notifier);
 
+          final isInProgress = ride.status == RideStatus.inProgress;
+          final client = ride.clientId != null ? clientsById[ride.clientId] : null;
+
           return RideCard(
             ride: ride,
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => RideFormScreen(ride: ride)),
+              MaterialPageRoute(
+                builder: (_) => isInProgress
+                    ? RideTrackingScreen(ride: ride)
+                    : RideFormScreen(ride: ride),
+              ),
             ),
             onAccept: ride.status == RideStatus.pending
                 ? () => actions.accept(ride.id)
@@ -116,8 +141,19 @@ class _RidesTab extends ConsumerWidget {
             onDecline: ride.status == RideStatus.pending
                 ? () => actions.decline(ride.id)
                 : null,
+            onStart: ride.status == RideStatus.accepted
+                ? () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => RideTrackingScreen(ride: ride)),
+                  )
+                : null,
             onCancel: ride.status == RideStatus.accepted
                 ? () => actions.cancel(ride.id)
+                : null,
+            onSendReceipt: ride.status == RideStatus.completed && client?.phone != null
+                ? () => openWhatsAppChat(
+                    phone: client!.phone!,
+                    message: buildRideReceiptMessage(ride, clientName: client.name),
+                  )
                 : null,
           );
         },

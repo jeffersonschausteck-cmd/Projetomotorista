@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/error/result.dart';
 import '../domain/entities/ride.dart';
+import '../domain/entities/route_point.dart';
 import '../domain/repositories/rides_repository.dart';
 import 'models/ride_model.dart';
 
@@ -124,6 +125,32 @@ class RidesRepositoryImpl implements RidesRepository {
       final row = await _client
           .from(_table)
           .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+      return Success(rideFromRow(row));
+    } on PostgrestException catch (e) {
+      return Error(UnexpectedFailure(e.message));
+    } catch (e) {
+      return Error(UnexpectedFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Result<Ride>> completeRide(
+    String id, {
+    required double tripDistanceKm,
+    required List<RoutePoint> routePoints,
+  }) async {
+    try {
+      final row = await _client
+          .from(_table)
+          .update({
+            'status': _statusDbValue[RideStatus.completed],
+            'completed_at': DateTime.now().toIso8601String(),
+            'trip_distance_km': tripDistanceKm,
+            'route_points': routePointsToJson(routePoints),
+          })
           .eq('id', id)
           .select()
           .single();

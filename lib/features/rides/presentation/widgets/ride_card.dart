@@ -11,6 +11,8 @@ class RideCard extends StatelessWidget {
     this.onAccept,
     this.onDecline,
     this.onCancel,
+    this.onStart,
+    this.onSendReceipt,
     super.key,
   });
 
@@ -19,6 +21,8 @@ class RideCard extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onDecline;
   final VoidCallback? onCancel;
+  final VoidCallback? onStart;
+  final VoidCallback? onSendReceipt;
 
   static final _dateFormat = DateFormat('dd/MM • HH:mm', 'pt_BR');
   static final _currencyFormat = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
@@ -59,7 +63,11 @@ class RideCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
-              if (onAccept != null || onDecline != null || onCancel != null) ...[
+              if (onAccept != null ||
+                  onDecline != null ||
+                  onCancel != null ||
+                  onStart != null ||
+                  onSendReceipt != null) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -68,6 +76,18 @@ class RideCard extends StatelessWidget {
                       FilledButton.tonal(onPressed: onAccept, child: const Text('Aceitar')),
                     if (onDecline != null)
                       OutlinedButton(onPressed: onDecline, child: const Text('Recusar')),
+                    if (onStart != null)
+                      FilledButton.icon(
+                        onPressed: onStart,
+                        icon: const Icon(Icons.play_arrow, size: 18),
+                        label: const Text('Iniciar corrida'),
+                      ),
+                    if (onSendReceipt != null)
+                      OutlinedButton.icon(
+                        onPressed: onSendReceipt,
+                        icon: const Icon(Icons.chat_outlined, size: 18),
+                        label: const Text('Enviar recibo'),
+                      ),
                     if (onCancel != null)
                       TextButton(onPressed: onCancel, child: const Text('Cancelar')),
                   ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/whatsapp_launcher.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../providers/clients_provider.dart';
 import 'client_form_screen.dart';
@@ -42,7 +43,13 @@ class ClientsListScreen extends ConsumerWidget {
                   child: ListTile(
                     title: Text(client.name),
                     subtitle: client.phone != null ? Text(client.phone!) : null,
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: client.phone != null
+                        ? IconButton(
+                            icon: const Icon(Icons.chat_outlined),
+                            tooltip: 'Conversar no WhatsApp',
+                            onPressed: () => openWhatsAppChat(phone: client.phone!),
+                          )
+                        : const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ClientFormScreen(client: client),

@@ -56,3 +56,27 @@ dashboard, em ordem:
   Sem essa secret configurada, a função responde 500 e o app mostra a
   mensagem de erro na tela de importação — o restante do app funciona
   normalmente (a importação por foto é a única funcionalidade bloqueada).
+
+## Fase 4 — Rastreamento + WhatsApp
+
+- `migrations/0008_add_ride_route_points.sql` — coluna `route_points`
+  (jsonb) em `rides`: breadcrumb de pontos GPS capturados durante o
+  rastreamento em primeiro plano da corrida (`[{lat, lng, recorded_at}]`).
+  Guardado como jsonb na própria linha, não numa tabela à parte — volume
+  baixo (dezenas de pontos por corrida), não justifica RLS/índices próprios.
+- **Rastreamento é em primeiro plano** (a tela precisa ficar aberta durante
+  a corrida): completa o ciclo `accepted -> in_progress -> completed` que já
+  existia no schema desde a Fase 0 mas não tinha UI. Ao iniciar, o app pede
+  permissão de localização e ouve `Geolocator.getPositionStream`; ao
+  finalizar, soma a distância real via Haversine (substitui a distância
+  digitada manualmente) e grava o breadcrumb. Rastreamento em segundo plano
+  com link público de acompanhamento pro cliente fica fora de escopo por
+  ora — é um projeto à parte (permissões de background + página pública sem
+  autenticação), não uma extensão pequena desta fase.
+- **WhatsApp via link `wa.me`**, não a API oficial do WhatsApp Business —
+  não exige conta Meta Business nem token, funciona imediatamente. Cobre
+  envio de recibo de corrida e "conversar com cliente". Automação de
+  verdade (enviar sozinho, receber resposta, disparar no fechamento do dia)
+  fica como upgrade futuro, condicionado a credenciais do Meta que o app
+  não pode se auto-provisionar (mesma categoria de bloqueio que a chave da
+  Anthropic na Fase 3).

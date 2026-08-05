@@ -24,6 +24,7 @@ import 'package:driver_platform/features/expenses/domain/entities/expense.dart';
 import 'package:driver_platform/features/ocr/data/ocr_repository_impl.dart';
 import 'package:driver_platform/features/rides/data/rides_repository_impl.dart';
 import 'package:driver_platform/features/rides/domain/entities/ride.dart';
+import 'package:driver_platform/features/rides/domain/entities/route_point.dart';
 import 'package:driver_platform/features/vehicles/data/maintenance_reminders_repository_impl.dart';
 import 'package:driver_platform/features/vehicles/data/vehicles_repository_impl.dart';
 import 'package:driver_platform/features/vehicles/domain/entities/maintenance_reminder.dart';
@@ -405,5 +406,76 @@ void main() {
         );
       },
     );
+  });
+
+  group('Rastreamento (Fase 4)', () {
+    late SupabaseClient client;
+    late RidesRepositoryImpl ridesRepository;
+    late String createdRideId;
+
+    setUpAll(() async {
+      client = _newClient();
+      await client.auth.signInWithPassword(email: _testEmail, password: _testPassword);
+      ridesRepository = RidesRepositoryImpl(client);
+    });
+
+    tearDownAll(() async {
+      await client.auth.signOut();
+    });
+
+    test('ciclo accepted -> in_progress -> completed grava distância e route_points', () async {
+      final now = DateTime.now();
+      final draft = Ride(
+        id: '',
+        driverId: '',
+        source: RideSource.manual,
+        platform: RidePlatform.particular,
+        status: RideStatus.accepted,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final created = await ridesRepository.createRide(draft);
+      created.when(
+        success: (r) => createdRideId = r.id,
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+
+      final started = await ridesRepository.updateStatus(createdRideId, RideStatus.inProgress);
+      started.when(
+        success: (r) {
+          expect(r.status, RideStatus.inProgress);
+          expect(r.startedAt, isNotNull);
+        },
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+
+      // Praça da Sé -> Av. Paulista (~2.9km em linha reta), 3 pontos.
+      final routePoints = [
+        RoutePoint(lat: -23.5505, lng: -46.6333, recordedAt: now),
+        RoutePoint(lat: -23.5560, lng: -46.6450, recordedAt: now.add(const Duration(minutes: 2))),
+        RoutePoint(
+          lat: -23.5613,
+          lng: -46.6565,
+          recordedAt: now.add(const Duration(minutes: 4)),
+        ),
+      ];
+
+      final completed = await ridesRepository.completeRide(
+        createdRideId,
+        tripDistanceKm: 2.9,
+        routePoints: routePoints,
+      );
+      completed.when(
+        success: (r) {
+          expect(r.status, RideStatus.completed);
+          expect(r.completedAt, isNotNull);
+          expect(r.tripDistanceKm, closeTo(2.9, 0.01));
+          expect(r.routePoints, hasLength(3));
+          expect(r.routePoints.first.lat, closeTo(-23.5505, 0.0001));
+        },
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
   });
 }

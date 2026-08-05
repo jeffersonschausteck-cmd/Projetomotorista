@@ -1,4 +1,5 @@
 import '../../domain/entities/ride.dart';
+import '../../domain/entities/route_point.dart';
 
 const _sourceValues = {
   RideSource.manual: 'manual',
@@ -47,6 +48,24 @@ DateTime? _parseDate(String? value) => value == null ? null : DateTime.parse(val
 
 double? _parseDouble(num? value) => value?.toDouble();
 
+List<RoutePoint> _parseRoutePoints(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .cast<Map<String, dynamic>>()
+      .map(
+        (p) => RoutePoint(
+          lat: (p['lat'] as num).toDouble(),
+          lng: (p['lng'] as num).toDouble(),
+          recordedAt: DateTime.parse(p['recorded_at'] as String),
+        ),
+      )
+      .toList();
+}
+
+List<Map<String, dynamic>> routePointsToJson(List<RoutePoint> points) => points
+    .map((p) => {'lat': p.lat, 'lng': p.lng, 'recorded_at': p.recordedAt.toIso8601String()})
+    .toList();
+
 Ride rideFromRow(Map<String, dynamic> row) {
   return Ride(
     id: row['id'] as String,
@@ -80,6 +99,7 @@ Ride rideFromRow(Map<String, dynamic> row) {
     estimatedDurationMin: row['estimated_duration_min'] as int?,
     category: row['category'] as String?,
     notes: row['notes'] as String?,
+    routePoints: _parseRoutePoints(row['route_points']),
     createdAt: DateTime.parse(row['created_at'] as String),
     updatedAt: DateTime.parse(row['updated_at'] as String),
   );

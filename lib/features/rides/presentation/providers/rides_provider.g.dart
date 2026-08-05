@@ -193,6 +193,100 @@ final class CancelRideUseCaseProvider
 
 String _$cancelRideUseCaseHash() => r'7c1cd6a870eb7a4bb392867ef255837187329f0f';
 
+@ProviderFor(startRideUseCase)
+final startRideUseCaseProvider = StartRideUseCaseProvider._();
+
+final class StartRideUseCaseProvider
+    extends
+        $FunctionalProvider<
+          StartRideUseCase,
+          StartRideUseCase,
+          StartRideUseCase
+        >
+    with $Provider<StartRideUseCase> {
+  StartRideUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'startRideUseCaseProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$startRideUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<StartRideUseCase> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  StartRideUseCase create(Ref ref) {
+    return startRideUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(StartRideUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<StartRideUseCase>(value),
+    );
+  }
+}
+
+String _$startRideUseCaseHash() => r'ce4154cf6ec0da4bf19d2b457c19647bb1d160a3';
+
+@ProviderFor(completeRideUseCase)
+final completeRideUseCaseProvider = CompleteRideUseCaseProvider._();
+
+final class CompleteRideUseCaseProvider
+    extends
+        $FunctionalProvider<
+          CompleteRideUseCase,
+          CompleteRideUseCase,
+          CompleteRideUseCase
+        >
+    with $Provider<CompleteRideUseCase> {
+  CompleteRideUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'completeRideUseCaseProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$completeRideUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<CompleteRideUseCase> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  CompleteRideUseCase create(Ref ref) {
+    return completeRideUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CompleteRideUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CompleteRideUseCase>(value),
+    );
+  }
+}
+
+String _$completeRideUseCaseHash() =>
+    r'd9d3e0de4e730ccbc9dc7533c74edad81e299d01';
+
 @ProviderFor(RidesList)
 final ridesListProvider = RidesListProvider._();
 
@@ -270,7 +364,7 @@ final class RideActionsControllerProvider
 }
 
 String _$rideActionsControllerHash() =>
-    r'b944d3fe75dfe619d25591d58949839c927c1c4f';
+    r'e4e29c59bc943e32a036710577063a3415d0dc3f';
 
 abstract class _$RideActionsController extends $Notifier<Failure?> {
   Failure? build();
