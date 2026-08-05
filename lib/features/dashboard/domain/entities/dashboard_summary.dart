@@ -1,5 +1,6 @@
-/// Resumo agregado exibido no Dashboard (Fase 1: calculado client-side a
-/// partir de `RidesRepository`; Fase 5: passa a vir de views SQL agregadas).
+/// Resumo agregado exibido no Dashboard. Calculado no Postgres via RPC
+/// (`get_dashboard_summary`, migration 0004) — evita puxar todas as corridas
+/// do período só para somar no cliente.
 class DashboardSummary {
   const DashboardSummary({
     required this.periodStart,

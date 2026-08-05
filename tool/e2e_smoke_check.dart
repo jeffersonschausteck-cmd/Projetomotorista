@@ -1,8 +1,9 @@
 // Checagem manual de integração contra um Supabase real (não roda no CI nem
 // em `flutter test` — fica fora de test/ de propósito, porque depende de
-// rede e de um projeto provisionado). Usa o mesmo código de produção
-// (AuthRepositoryImpl) para validar signUp/signIn/trigger/RLS de ponta a
-// ponta contra o backend.
+// rede e de um projeto provisionado). Usa o código de produção das camadas
+// data (AuthRepositoryImpl, ClientsRepositoryImpl, RidesRepositoryImpl,
+// DashboardRepositoryImpl) para validar signUp/signIn/trigger/RLS e o CRUD
+// da Fase 1 de ponta a ponta contra o backend.
 //
 // Pré-requisito: exista um usuário de teste com e-mail confirmado em
 // teste.motorando@exemplo.com / SenhaForte123! (ou ajuste as constantes
@@ -13,6 +14,11 @@
 
 import 'package:driver_platform/core/error/result.dart';
 import 'package:driver_platform/features/auth/data/auth_repository_impl.dart';
+import 'package:driver_platform/features/clients/data/clients_repository_impl.dart';
+import 'package:driver_platform/features/clients/domain/entities/client.dart';
+import 'package:driver_platform/features/dashboard/data/dashboard_repository_impl.dart';
+import 'package:driver_platform/features/rides/data/rides_repository_impl.dart';
+import 'package:driver_platform/features/rides/domain/entities/ride.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,58 +27,189 @@ const _key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 const _testEmail = 'teste.motorando@exemplo.com';
 const _testPassword = 'SenhaForte123!';
 
+SupabaseClient _newClient() => SupabaseClient(
+  _url,
+  _key,
+  // authFlowType: implicit evita a asserção de storage assíncrono do PKCE,
+  // que só existe porque este harness usa SupabaseClient puro. O app real
+  // usa Supabase.initialize() (supabase_flutter), que já provê esse storage.
+  authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
+);
+
 void main() {
-  late SupabaseClient client;
-  late AuthRepositoryImpl repository;
+  group('Auth (Fase 0)', () {
+    late SupabaseClient client;
+    late AuthRepositoryImpl repository;
 
-  setUpAll(() {
-    // authFlowType: implicit evita a asserção de storage assíncrono do PKCE,
-    // que só existe porque este harness usa SupabaseClient puro. O app real
-    // usa Supabase.initialize() (supabase_flutter), que já provê esse storage.
-    client = SupabaseClient(
-      _url,
-      _key,
-      authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
-    );
-    repository = AuthRepositoryImpl(client);
+    setUpAll(() {
+      client = _newClient();
+      repository = AuthRepositoryImpl(client);
+    });
+
+    test('signInWithPassword autentica o usuário de teste real', () async {
+      final result = await repository.signInWithPassword(
+        email: _testEmail,
+        password: _testPassword,
+      );
+
+      expect(result, isA<Success<void>>());
+      expect(repository.currentUser, isNotNull);
+      expect(repository.currentUser!.email, _testEmail);
+    });
+
+    test('signOut limpa a sessão', () async {
+      await repository.signOut();
+      expect(repository.currentUser, isNull);
+    });
+
+    test('signInWithPassword falha com senha errada', () async {
+      final result = await repository.signInWithPassword(
+        email: _testEmail,
+        password: 'senha-errada',
+      );
+
+      expect(result, isA<Error<void>>());
+    });
+
+    test('signUpWithPassword cria o usuário (trigger cria profiles à parte)', () async {
+      final email = 'e2e-${DateTime.now().microsecondsSinceEpoch}@exemplo.com';
+      final result = await repository.signUpWithPassword(
+        email: email,
+        password: _testPassword,
+        fullName: 'Usuário E2E',
+      );
+
+      result.when(
+        success: (_) {},
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
   });
 
-  test('signInWithPassword autentica o usuário de teste real', () async {
-    final result = await repository.signInWithPassword(
-      email: _testEmail,
-      password: _testPassword,
-    );
+  group('Clients + Rides + Dashboard (Fase 1)', () {
+    late SupabaseClient client;
+    late ClientsRepositoryImpl clientsRepository;
+    late RidesRepositoryImpl ridesRepository;
+    late DashboardRepositoryImpl dashboardRepository;
+    late String createdClientId;
+    late String createdRideId;
 
-    expect(result, isA<Success<void>>());
-    expect(repository.currentUser, isNotNull);
-    expect(repository.currentUser!.email, _testEmail);
-  });
+    setUpAll(() async {
+      client = _newClient();
+      await client.auth.signInWithPassword(email: _testEmail, password: _testPassword);
+      clientsRepository = ClientsRepositoryImpl(client);
+      ridesRepository = RidesRepositoryImpl(client);
+      dashboardRepository = DashboardRepositoryImpl(client);
+    });
 
-  test('signOut limpa a sessão', () async {
-    await repository.signOut();
-    expect(repository.currentUser, isNull);
-  });
+    tearDownAll(() async {
+      await client.auth.signOut();
+    });
 
-  test('signInWithPassword falha com senha errada', () async {
-    final result = await repository.signInWithPassword(
-      email: _testEmail,
-      password: 'senha-errada',
-    );
+    test('createClient grava e getClients traz o cliente criado', () async {
+      final draft = Client(
+        id: '',
+        driverId: '',
+        name: 'Cliente E2E ${DateTime.now().microsecondsSinceEpoch}',
+        phone: '11999999999',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
 
-    expect(result, isA<Error<void>>());
-  });
+      final created = await clientsRepository.createClient(draft);
+      created.when(
+        success: (c) => createdClientId = c.id,
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
 
-  test('signUpWithPassword cria o usuário (trigger cria profiles à parte)', () async {
-    final email = 'e2e-${DateTime.now().microsecondsSinceEpoch}@exemplo.com';
-    final result = await repository.signUpWithPassword(
-      email: email,
-      password: _testPassword,
-      fullName: 'Usuário E2E',
-    );
+      final list = await clientsRepository.getClients();
+      list.when(
+        success: (clients) =>
+            expect(clients.any((c) => c.id == createdClientId), isTrue),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
 
-    result.when(
-      success: (_) {},
-      failure: (f) => fail('${f.runtimeType}: ${f.message}'),
-    );
+    test('createRide grava vinculada ao cliente criado', () async {
+      final draft = Ride(
+        id: '',
+        driverId: '',
+        clientId: createdClientId,
+        source: RideSource.manual,
+        platform: RidePlatform.particular,
+        status: RideStatus.completed,
+        originAddress: 'Origem E2E',
+        destinationAddress: 'Destino E2E',
+        grossAmount: 55,
+        paymentMethod: PaymentMethod.pix,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final created = await ridesRepository.createRide(draft);
+      created.when(
+        success: (r) {
+          createdRideId = r.id;
+          expect(r.clientId, createdClientId);
+          expect(r.status, RideStatus.completed);
+        },
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test('updateStatus (via CancelRideUseCase) seta cancelled_at', () async {
+      final result = await ridesRepository.updateStatus(
+        createdRideId,
+        RideStatus.cancelled,
+      );
+      result.when(
+        success: (r) {
+          expect(r.status, RideStatus.cancelled);
+          expect(r.cancelledAt, isNotNull);
+        },
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test('getSummary (RPC get_dashboard_summary) agrega corridas completed', () async {
+      // a corrida criada acima já foi cancelada — cria outra completed para
+      // garantir que o RPC tem o que agregar neste período.
+      await ridesRepository.createRide(
+        Ride(
+          id: '',
+          driverId: '',
+          clientId: createdClientId,
+          source: RideSource.manual,
+          platform: RidePlatform.particular,
+          status: RideStatus.completed,
+          grossAmount: 30,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final now = DateTime.now();
+      final result = await dashboardRepository.getSummary(
+        from: DateTime(now.year, now.month, now.day),
+        to: now.add(const Duration(minutes: 1)),
+      );
+
+      result.when(
+        success: (summary) => expect(summary.totalRides, greaterThanOrEqualTo(1)),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test('deleteClient faz soft delete (some da listagem)', () async {
+      final deleted = await clientsRepository.deleteClient(createdClientId);
+      expect(deleted, isA<Success<void>>());
+
+      final list = await clientsRepository.getClients();
+      list.when(
+        success: (clients) =>
+            expect(clients.any((c) => c.id == createdClientId), isFalse),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
   });
 }

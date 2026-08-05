@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../providers/dashboard_provider.dart';
+import '../widgets/earnings_card.dart';
 
-/// Ganhos/KM/metas chegam na Fase 1 — por ora, casco navegável + logout.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final overviewAsync = ref.watch(dashboardOverviewProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Painel'),
@@ -20,8 +23,22 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: const Center(
-        child: Text('Dashboard de ganhos, KM e metas chega na Fase 1.'),
+      body: overviewAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('Erro ao carregar o painel: $error')),
+        data: (overview) => RefreshIndicator(
+          onRefresh: () => ref.refresh(dashboardOverviewProvider.future),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              EarningsCard(title: 'Hoje', summary: overview.day),
+              const SizedBox(height: 12),
+              EarningsCard(title: 'Esta semana', summary: overview.week),
+              const SizedBox(height: 12),
+              EarningsCard(title: 'Este mês', summary: overview.month),
+            ],
+          ),
+        ),
       ),
     );
   }
