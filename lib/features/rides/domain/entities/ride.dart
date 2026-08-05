@@ -34,6 +34,7 @@ class Ride {
     this.distanceToPickupKm,
     this.tripDistanceKm,
     this.estimatedDurationMin,
+    this.category,
     this.notes,
   });
 
@@ -65,6 +66,10 @@ class Ride {
   final double? distanceToPickupKm;
   final double? tripDistanceKm;
   final int? estimatedDurationMin;
+
+  /// Categoria da oferta (ex: "UberX", "99 Comfort") — texto livre, varia
+  /// demais entre plataformas para virar enum. Ver 0007_add_ride_category.sql.
+  final String? category;
 
   final String? notes;
 

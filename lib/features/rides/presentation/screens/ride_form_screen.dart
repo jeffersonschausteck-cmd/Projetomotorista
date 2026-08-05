@@ -7,10 +7,25 @@ import '../../../clients/presentation/screens/client_form_screen.dart';
 import '../../domain/entities/ride.dart';
 import '../providers/rides_provider.dart';
 
-class RideFormScreen extends ConsumerStatefulWidget {
-  const RideFormScreen({super.key, this.ride});
+const _platformLabels = {
+  RidePlatform.particular: 'Particular',
+  RidePlatform.uber: 'Uber',
+  RidePlatform.p99: '99',
+  RidePlatform.inDrive: 'inDrive',
+  RidePlatform.maxim: 'Maxim',
+  RidePlatform.other: 'Outro',
+};
 
+class RideFormScreen extends ConsumerStatefulWidget {
+  const RideFormScreen({super.key, this.ride, this.prefill});
+
+  /// Corrida existente sendo editada.
   final Ride? ride;
+
+  /// Rascunho vindo da extração por OCR (Fase 3) — pré-preenche o
+  /// formulário de uma corrida NOVA (sem id), sempre pra revisão manual
+  /// antes de salvar.
+  final Ride? prefill;
 
   @override
   ConsumerState<RideFormScreen> createState() => _RideFormScreenState();
@@ -18,25 +33,39 @@ class RideFormScreen extends ConsumerStatefulWidget {
 
 class _RideFormScreenState extends ConsumerState<RideFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final _originController = TextEditingController(text: widget.ride?.originAddress);
-  late final _destinationController = TextEditingController(
-    text: widget.ride?.destinationAddress,
-  );
+
+  late final Ride? _source = widget.ride ?? widget.prefill;
+  late final _originController = TextEditingController(text: _source?.originAddress);
+  late final _destinationController = TextEditingController(text: _source?.destinationAddress);
   late final _valueController = TextEditingController(
-    text: widget.ride?.grossAmount?.toStringAsFixed(2),
+    text: _source?.grossAmount?.toStringAsFixed(2),
   );
-  late final _notesController = TextEditingController(text: widget.ride?.notes);
+  late final _categoryController = TextEditingController(text: _source?.category);
+  late final _distanceToPickupController = TextEditingController(
+    text: _source?.distanceToPickupKm?.toStringAsFixed(1),
+  );
+  late final _tripDistanceController = TextEditingController(
+    text: _source?.tripDistanceKm?.toStringAsFixed(1),
+  );
+  late final _durationController = TextEditingController(
+    text: _source?.estimatedDurationMin?.toString(),
+  );
+  late final _notesController = TextEditingController(text: _source?.notes);
 
   String? _clientId;
+  RidePlatform _platform = RidePlatform.particular;
   PaymentMethod? _paymentMethod;
   DateTime? _scheduledFor;
   bool _isSubmitting = false;
+
+  bool get _isOcrImport => widget.prefill != null;
 
   @override
   void initState() {
     super.initState();
     _clientId = widget.ride?.clientId;
-    _paymentMethod = widget.ride?.paymentMethod;
+    _platform = _source?.platform ?? RidePlatform.particular;
+    _paymentMethod = _source?.paymentMethod;
     _scheduledFor = widget.ride?.scheduledAt;
   }
 
@@ -45,6 +74,10 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
     _originController.dispose();
     _destinationController.dispose();
     _valueController.dispose();
+    _categoryController.dispose();
+    _distanceToPickupController.dispose();
+    _tripDistanceController.dispose();
+    _durationController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -79,6 +112,9 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
     }
   }
 
+  double? _parseDouble(String text) =>
+      text.trim().isEmpty ? null : double.tryParse(text.trim().replaceAll(',', '.'));
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
@@ -90,9 +126,13 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
       id: widget.ride?.id ?? '',
       driverId: widget.ride?.driverId ?? '',
       clientId: _clientId,
-      source: isScheduled ? RideSource.scheduled : RideSource.manual,
-      platform: RidePlatform.particular,
-      status: isScheduled ? RideStatus.pending : RideStatus.completed,
+      source: _isOcrImport
+          ? RideSource.platformOcr
+          : (isScheduled ? RideSource.scheduled : RideSource.manual),
+      platform: _platform,
+      status: _isOcrImport
+          ? RideStatus.pending
+          : (isScheduled ? RideStatus.pending : RideStatus.completed),
       originAddress: _originController.text.trim().isEmpty
           ? null
           : _originController.text.trim(),
@@ -100,9 +140,13 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
           ? null
           : _destinationController.text.trim(),
       scheduledAt: _scheduledFor,
-      completedAt: isScheduled ? null : now,
-      grossAmount: double.tryParse(_valueController.text.replaceAll(',', '.')),
+      completedAt: (_isOcrImport || isScheduled) ? null : now,
+      grossAmount: _parseDouble(_valueController.text),
       paymentMethod: _paymentMethod,
+      distanceToPickupKm: _parseDouble(_distanceToPickupController.text),
+      tripDistanceKm: _parseDouble(_tripDistanceController.text),
+      estimatedDurationMin: int.tryParse(_durationController.text.trim()),
+      category: _categoryController.text.trim().isEmpty ? null : _categoryController.text.trim(),
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       createdAt: widget.ride?.createdAt ?? now,
       updatedAt: now,
@@ -124,7 +168,13 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
     final isEditing = widget.ride != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEditing ? 'Editar corrida' : 'Nova corrida')),
+      appBar: AppBar(
+        title: Text(
+          isEditing
+              ? 'Editar corrida'
+              : (_isOcrImport ? 'Confirmar corrida importada' : 'Nova corrida'),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -133,6 +183,46 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_isOcrImport) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.auto_awesome_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Dados extraídos da imagem — confira antes de salvar.',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                DropdownButtonFormField<RidePlatform>(
+                  initialValue: _platform,
+                  decoration: const InputDecoration(labelText: 'Plataforma'),
+                  items: _platformLabels.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _platform = value!),
+                ),
+                if (_platform != RidePlatform.particular) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _categoryController,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoria (opcional)',
+                      helperText: 'Ex: UberX, 99 Comfort',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
                 clientsAsync.when(
                   loading: () => const LinearProgressIndicator(),
                   error: (_, _) => const SizedBox.shrink(),
@@ -188,6 +278,34 @@ class _RideFormScreenState extends ConsumerState<RideFormScreen> {
                   ],
                   onChanged: (value) => setState(() => _paymentMethod = value),
                 ),
+                if (_isOcrImport) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _distanceToPickupController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Até embarque (km)'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _tripDistanceController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Corrida (km)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _durationController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Duração estimada (min)'),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: _pickSchedule,

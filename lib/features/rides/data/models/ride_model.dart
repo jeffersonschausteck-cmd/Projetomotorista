@@ -78,6 +78,7 @@ Ride rideFromRow(Map<String, dynamic> row) {
     distanceToPickupKm: _parseDouble(row['distance_to_pickup_km'] as num?),
     tripDistanceKm: _parseDouble(row['trip_distance_km'] as num?),
     estimatedDurationMin: row['estimated_duration_min'] as int?,
+    category: row['category'] as String?,
     notes: row['notes'] as String?,
     createdAt: DateTime.parse(row['created_at'] as String),
     updatedAt: DateTime.parse(row['updated_at'] as String),
@@ -97,6 +98,10 @@ Map<String, dynamic> rideToInsertRow(Ride ride, {required String driverId}) {
     'scheduled_at': ride.scheduledAt?.toIso8601String(),
     'gross_amount': ride.grossAmount,
     'payment_method': _enumToDb(_paymentMethodValues, ride.paymentMethod),
+    'distance_to_pickup_km': ride.distanceToPickupKm,
+    'trip_distance_km': ride.tripDistanceKm,
+    'estimated_duration_min': ride.estimatedDurationMin,
+    'category': ride.category,
     'notes': ride.notes,
   };
 }

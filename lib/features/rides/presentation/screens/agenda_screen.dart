@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/empty_state.dart';
+import '../../../ocr/presentation/screens/ride_import_screen.dart';
 import '../../domain/entities/ride.dart';
 import '../providers/rides_provider.dart';
 import '../widgets/ride_card.dart';
@@ -31,6 +32,15 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Corridas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.document_scanner_outlined),
+            tooltip: 'Importar corrida (foto)',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RideImportScreen()),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [Tab(text: 'Agenda'), Tab(text: 'Histórico')],

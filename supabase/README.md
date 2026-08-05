@@ -34,3 +34,25 @@ dashboard, em ordem:
   entram na Fase 2, junto com o restante do módulo financeiro.
 - Tabelas de IA/estatísticas agregadas — Fase 5, quando houver volume real
   de corridas para agregar.
+
+## Fase 3 — OCR inteligente
+
+- `migrations/0007_add_ride_category.sql` — coluna `category` em `rides`
+  (texto livre, ex: "UberX", "99 Comfort").
+- `functions/extract-ride-from-image/` — Edge Function (Deno) que recebe um
+  print de tela em base64, chama a IA de visão (Claude, via
+  `npm:@anthropic-ai/sdk`) com extração estruturada forçada (`tool_choice`
+  + `strict: true`) e devolve os campos já tipados. A imagem nunca é
+  persistida em Storage; a função nunca grava nada em `rides` — quem grava é
+  sempre o app, depois que o motorista confirma os dados na tela de revisão.
+- **Requer a secret `ANTHROPIC_API_KEY` no projeto** (chave de
+  console.anthropic.com), configurada via:
+  ```
+  curl -X POST "https://api.supabase.com/v1/projects/{ref}/secrets" \
+    -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '[{"name":"ANTHROPIC_API_KEY","value":"sk-ant-..."}]'
+  ```
+  Sem essa secret configurada, a função responde 500 e o app mostra a
+  mensagem de erro na tela de importação — o restante do app funciona
+  normalmente (a importação por foto é a única funcionalidade bloqueada).

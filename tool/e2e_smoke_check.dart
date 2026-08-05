@@ -12,6 +12,8 @@
 // Rodar com:
 //   flutter test tool/e2e_smoke_check.dart --dart-define-from-file=dart_define.json
 
+import 'dart:convert';
+
 import 'package:driver_platform/core/error/result.dart';
 import 'package:driver_platform/features/auth/data/auth_repository_impl.dart';
 import 'package:driver_platform/features/clients/data/clients_repository_impl.dart';
@@ -19,6 +21,7 @@ import 'package:driver_platform/features/clients/domain/entities/client.dart';
 import 'package:driver_platform/features/dashboard/data/dashboard_repository_impl.dart';
 import 'package:driver_platform/features/expenses/data/expenses_repository_impl.dart';
 import 'package:driver_platform/features/expenses/domain/entities/expense.dart';
+import 'package:driver_platform/features/ocr/data/ocr_repository_impl.dart';
 import 'package:driver_platform/features/rides/data/rides_repository_impl.dart';
 import 'package:driver_platform/features/rides/domain/entities/ride.dart';
 import 'package:driver_platform/features/vehicles/data/maintenance_reminders_repository_impl.dart';
@@ -335,5 +338,72 @@ void main() {
         failure: (f) => fail('${f.runtimeType}: ${f.message}'),
       );
     });
+  });
+
+  group('OCR (Fase 3)', () {
+    late SupabaseClient client;
+    late RidesRepositoryImpl ridesRepository;
+    late OcrRepositoryImpl ocrRepository;
+
+    setUpAll(() async {
+      client = _newClient();
+      await client.auth.signInWithPassword(email: _testEmail, password: _testPassword);
+      ridesRepository = RidesRepositoryImpl(client);
+      ocrRepository = OcrRepositoryImpl(client);
+    });
+
+    tearDownAll(() async {
+      await client.auth.signOut();
+    });
+
+    test('createRide grava category e platform (colunas da Fase 3)', () async {
+      final now = DateTime.now();
+      final draft = Ride(
+        id: '',
+        driverId: '',
+        source: RideSource.platformOcr,
+        platform: RidePlatform.uber,
+        status: RideStatus.pending,
+        category: 'UberX',
+        grossAmount: 22.5,
+        distanceToPickupKm: 1.2,
+        tripDistanceKm: 6.8,
+        estimatedDurationMin: 18,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final created = await ridesRepository.createRide(draft);
+      created.when(
+        success: (r) {
+          expect(r.category, 'UberX');
+          expect(r.platform, RidePlatform.uber);
+          expect(r.distanceToPickupKm, closeTo(1.2, 0.01));
+          expect(r.tripDistanceKm, closeTo(6.8, 0.01));
+          expect(r.estimatedDurationMin, 18);
+        },
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test(
+      'extractRideFromImage chega na Edge Function (falha graciosamente sem ANTHROPIC_API_KEY)',
+      () async {
+        // 1x1 PNG mínimo só pra validar que a função está implantada e
+        // responde — a extração de verdade só funciona com a secret
+        // ANTHROPIC_API_KEY configurada no projeto (ver supabase/README.md).
+        const tinyPngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        final result = await ocrRepository.extractRideFromImage(base64Decode(tinyPngBase64));
+
+        // ANTHROPIC_API_KEY ainda não configurada -> Error esperado aqui.
+        // Quando a secret for configurada, este teste passa a receber
+        // Success (ou um Error de outra natureza, já que a imagem é 1x1).
+        result.when(
+          success: (_) {},
+          failure: (f) => expect(f.message, contains('ANTHROPIC_API_KEY')),
+        );
+      },
+    );
   });
 }
