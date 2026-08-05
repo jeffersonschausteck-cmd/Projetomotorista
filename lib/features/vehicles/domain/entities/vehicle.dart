@@ -1,5 +1,6 @@
 /// Espelha `vehicles` (supabase/migrations/0001_init_core_schema.sql).
-/// Campos de manutenção (revisão, óleo, pneus) chegam na Fase 2.
+/// Lembretes de manutenção (revisão, óleo, pneus) vivem em
+/// `MaintenanceReminder`, não como colunas aqui — um veículo pode ter N.
 class Vehicle {
   const Vehicle({
     required this.id,

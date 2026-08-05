@@ -31,6 +31,8 @@ class DashboardRepositoryImpl implements DashboardRepository {
           totalRides: row['total_rides'] as int,
           grossAmount: (row['gross_amount'] as num).toDouble(),
           totalKm: (row['total_km'] as num).toDouble(),
+          totalExpenses: (row['total_expenses'] as num).toDouble(),
+          netAmount: (row['net_amount'] as num).toDouble(),
         ),
       );
     } on PostgrestException catch (e) {

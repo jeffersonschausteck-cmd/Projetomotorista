@@ -17,8 +17,14 @@ import 'package:driver_platform/features/auth/data/auth_repository_impl.dart';
 import 'package:driver_platform/features/clients/data/clients_repository_impl.dart';
 import 'package:driver_platform/features/clients/domain/entities/client.dart';
 import 'package:driver_platform/features/dashboard/data/dashboard_repository_impl.dart';
+import 'package:driver_platform/features/expenses/data/expenses_repository_impl.dart';
+import 'package:driver_platform/features/expenses/domain/entities/expense.dart';
 import 'package:driver_platform/features/rides/data/rides_repository_impl.dart';
 import 'package:driver_platform/features/rides/domain/entities/ride.dart';
+import 'package:driver_platform/features/vehicles/data/maintenance_reminders_repository_impl.dart';
+import 'package:driver_platform/features/vehicles/data/vehicles_repository_impl.dart';
+import 'package:driver_platform/features/vehicles/domain/entities/maintenance_reminder.dart';
+import 'package:driver_platform/features/vehicles/domain/entities/vehicle.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -208,6 +214,124 @@ void main() {
       list.when(
         success: (clients) =>
             expect(clients.any((c) => c.id == createdClientId), isFalse),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+  });
+
+  group('Vehicles + Maintenance + Expenses + lucro líquido (Fase 2)', () {
+    late SupabaseClient client;
+    late VehiclesRepositoryImpl vehiclesRepository;
+    late MaintenanceRemindersRepositoryImpl remindersRepository;
+    late ExpensesRepositoryImpl expensesRepository;
+    late RidesRepositoryImpl ridesRepository;
+    late DashboardRepositoryImpl dashboardRepository;
+    late String createdVehicleId;
+
+    setUpAll(() async {
+      client = _newClient();
+      await client.auth.signInWithPassword(email: _testEmail, password: _testPassword);
+      vehiclesRepository = VehiclesRepositoryImpl(client);
+      remindersRepository = MaintenanceRemindersRepositoryImpl(client);
+      expensesRepository = ExpensesRepositoryImpl(client);
+      ridesRepository = RidesRepositoryImpl(client);
+      dashboardRepository = DashboardRepositoryImpl(client);
+    });
+
+    tearDownAll(() async {
+      await client.auth.signOut();
+    });
+
+    test('createVehicle grava e getVehicles traz o veículo criado', () async {
+      final draft = Vehicle(
+        id: '',
+        driverId: '',
+        nickname: 'Onix E2E',
+        currentKm: 9800,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final created = await vehiclesRepository.createVehicle(draft);
+      created.when(
+        success: (v) => createdVehicleId = v.id,
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+
+      final list = await vehiclesRepository.getVehicles();
+      list.when(
+        success: (vehicles) =>
+            expect(vehicles.any((v) => v.id == createdVehicleId), isTrue),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test('createReminder grava vinculado ao veículo e status bate com o KM real', () async {
+      final draft = MaintenanceReminder(
+        id: '',
+        driverId: '',
+        vehicleId: createdVehicleId,
+        type: MaintenanceType.oilChange,
+        dueKm: 10000,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final created = await remindersRepository.createReminder(draft);
+      created.when(
+        success: (r) => expect(r.statusFor(currentKm: 9800), ReminderStatus.upcoming),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+
+      final list = await remindersRepository.getReminders(vehicleId: createdVehicleId);
+      list.when(
+        success: (reminders) => expect(reminders, isNotEmpty),
+        failure: (f) => fail('${f.runtimeType}: ${f.message}'),
+      );
+    });
+
+    test('createExpense grava e entra no cálculo de lucro líquido do dashboard', () async {
+      final now = DateTime.now();
+
+      // garante uma corrida completed hoje para ter receita bruta > 0
+      await ridesRepository.createRide(
+        Ride(
+          id: '',
+          driverId: '',
+          source: RideSource.manual,
+          platform: RidePlatform.particular,
+          status: RideStatus.completed,
+          grossAmount: 100,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final expenseDraft = Expense(
+        id: '',
+        driverId: '',
+        vehicleId: createdVehicleId,
+        category: ExpenseCategory.fuel,
+        amount: 40,
+        expenseDate: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final createdExpense = await expensesRepository.createExpense(expenseDraft);
+      expect(createdExpense, isA<Success<Expense>>());
+
+      final summary = await dashboardRepository.getSummary(
+        from: DateTime(now.year, now.month, now.day),
+        to: now.add(const Duration(minutes: 1)),
+      );
+
+      summary.when(
+        success: (s) {
+          expect(s.totalExpenses, greaterThanOrEqualTo(40));
+          expect(s.netAmount, closeTo(s.grossAmount - s.totalExpenses, 0.01));
+        },
         failure: (f) => fail('${f.runtimeType}: ${f.message}'),
       );
     });

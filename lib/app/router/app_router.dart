@@ -6,6 +6,7 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/signup_screen.dart';
 import '../../features/clients/presentation/screens/clients_list_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/expenses/presentation/screens/expenses_list_screen.dart';
 import '../../features/rides/presentation/screens/agenda_screen.dart';
 import '../../features/vehicles/presentation/screens/vehicles_list_screen.dart';
 import 'app_shell.dart';
@@ -50,6 +51,11 @@ GoRouter goRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(path: '/vehicles', builder: (_, _) => const VehiclesListScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/expenses', builder: (_, _) => const ExpensesListScreen()),
             ],
           ),
         ],

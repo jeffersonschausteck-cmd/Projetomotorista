@@ -23,9 +23,29 @@ class EarningsCard extends StatelessWidget {
           children: [
             Text(title, style: textTheme.titleMedium),
             const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _currencyFormat.format(summary.grossAmount),
+                  style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    'bruto',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
             Text(
-              _currencyFormat.format(summary.grossAmount),
-              style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              '${_currencyFormat.format(summary.netAmount)} líquido',
+              style: TextStyle(
+                color: summary.netAmount >= 0 ? Colors.green : Theme.of(context).colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 12),
             Row(
@@ -37,6 +57,11 @@ class EarningsCard extends StatelessWidget {
                 _Stat(
                   label: 'R\$/KM',
                   value: summary.amountPerKm.toStringAsFixed(2),
+                ),
+                const SizedBox(width: 24),
+                _Stat(
+                  label: 'Despesas',
+                  value: _currencyFormat.format(summary.totalExpenses),
                 ),
               ],
             ),
